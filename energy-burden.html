@@ -6,23 +6,56 @@
     <title>Energy Burden & Electric Cooperative Territories</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+    <!-- Pleiades Strategy brand fonts: Abel (headings) is loaded from Google Fonts.
+         Proxima Nova (body copy) is a licensed font served by Squarespace/Adobe Fonts;
+         if this page is embedded in a Squarespace Code Block (which renders in its own
+         iframe), add your site's Adobe Fonts/Squarespace font kit <link> here so Proxima
+         Nova loads correctly. A system sans-serif fallback is used until then. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Abel&display=swap" rel="stylesheet">
     <style>
+        :root {
+            /* Pleiades Strategy — Text Body & Accents palette */
+            --pleiades-navy: #00005B;
+            --pleiades-periwinkle: #6360F0;
+            --pleiades-blue: #0000FB;
+            --pleiades-ink: #0D0D0D;
+            --pleiades-gray: #666666;
+            --pleiades-light-gray: #D7D7D6;
+            --pleiades-light-blue: #C9DAEB;
+            --pleiades-white: #FFFFFF;
+            /* Pleiades Strategy — Categories palette (single-category accent for coop territories) */
+            --pleiades-cat-orange: #F1981E;
+            /* Pleiades Strategy — Degrees palette (magnitude: energy burden) */
+            --pleiades-deg-1: #FFC0C0;
+            --pleiades-deg-2: #FF6B6B;
+            --pleiades-deg-3: #CD0000;
+            --pleiades-deg-4: #8E0000;
+            --pleiades-deg-5: #540000;
+            /* Fonts */
+            --font-heading: 'Abel', sans-serif;
+            --font-body: 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: var(--font-body);
+            background: var(--pleiades-white);
+            color: var(--pleiades-ink);
         }
-
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-heading);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+        }
         #map {
             height: 700px;
             width: 100%;
         }
-
         .info {
             padding: 10px 14px;
             background: white;
@@ -30,25 +63,22 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             border-radius: 8px;
             max-width: 280px;
+            font-family: var(--font-body);
         }
-
         .info h4 {
             margin: 0 0 8px;
-            color: #333;
-            font-size: 16px;
-            font-weight: 600;
+            color: var(--pleiades-navy);
+            font-size: 17px;
+            font-weight: 400;
         }
-
         .info p {
             margin: 6px 0;
             font-size: 13px;
-            color: #666;
+            color: var(--pleiades-gray);
         }
-
         .info b {
-            color: #333;
+            color: var(--pleiades-ink);
         }
-
         .legend {
             padding: 14px;
             background: white;
@@ -56,16 +86,15 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             border-radius: 8px;
             line-height: 20px;
-            color: #555;
+            color: var(--pleiades-gray);
+            font-family: var(--font-body);
         }
-
         .legend h4 {
             margin: 0 0 8px;
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
+            font-size: 15px;
+            font-weight: 400;
+            color: var(--pleiades-navy);
         }
-
         .legend i {
             width: 18px;
             height: 18px;
@@ -74,34 +103,29 @@
             opacity: 0.8;
             border-radius: 2px;
         }
-
         .legend p {
             margin: 4px 0;
             font-size: 12px;
             clear: both;
         }
-
         .legend-divider {
-            border-top: 1px solid #ddd;
+            border-top: 1px solid var(--pleiades-light-gray);
             margin: 10px 0;
         }
-
         .legend-item {
             margin: 8px 0;
             display: flex;
             align-items: center;
             font-size: 12px;
         }
-
         .legend-coop {
-            background: rgba(49, 130, 206, 0.3);
-            border: 2px solid #2c5282;
+            background: rgba(99, 96, 240, 0.3);
+            border: 2px solid var(--pleiades-navy);
             width: 30px;
             height: 18px;
             margin-right: 8px;
             border-radius: 2px;
         }
-
         .control-panel {
             position: absolute;
             top: 10px;
@@ -112,44 +136,43 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             z-index: 1000;
             min-width: 200px;
+            font-family: var(--font-body);
         }
-
         .control-panel h4 {
             margin: 0 0 10px 0;
-            font-size: 14px;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 400;
+            color: var(--pleiades-navy);
         }
-
         .control-panel label {
             display: flex;
             align-items: center;
             margin-bottom: 8px;
             cursor: pointer;
             font-size: 13px;
+            color: var(--pleiades-ink);
         }
-
         .control-panel input[type="checkbox"] {
             margin-right: 8px;
             cursor: pointer;
+            accent-color: var(--pleiades-navy);
         }
-
         .opacity-control {
             margin-top: 10px;
             padding-top: 10px;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid var(--pleiades-light-gray);
         }
-
         .opacity-label {
             display: flex;
             justify-content: space-between;
             font-size: 12px;
             margin-bottom: 4px;
+            color: var(--pleiades-gray);
         }
-
         .control-panel input[type="range"] {
             width: 100%;
+            accent-color: var(--pleiades-navy);
         }
-
         #loading {
             position: fixed;
             top: 50%;
@@ -161,156 +184,138 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             z-index: 10000;
             text-align: center;
+            font-family: var(--font-body);
         }
-
         #loading h3 {
             margin: 0 0 15px 0;
-            color: #333;
-            font-size: 18px;
+            color: var(--pleiades-navy);
+            font-size: 19px;
+            font-weight: 400;
         }
-
         #loading .progress {
             font-size: 14px;
-            color: #666;
+            color: var(--pleiades-gray);
             margin-top: 10px;
         }
-
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            border: 3px solid var(--pleiades-light-gray);
+            border-top: 3px solid var(--pleiades-periwinkle);
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 15px auto;
         }
-
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
         .progress-bar {
             width: 100%;
             height: 6px;
-            background: #f0f0f0;
+            background: var(--pleiades-light-gray);
             border-radius: 3px;
             overflow: hidden;
             margin-top: 15px;
         }
-
         .progress-bar-fill {
             height: 100%;
-            background: #3498db;
+            background: var(--pleiades-periwinkle);
             width: 0%;
             transition: width 0.3s ease;
         }
-
         /* Table Styles */
         #table-container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 0 20px 40px;
-            border-top: 2px solid #e0e0e0;
+            border-top: 2px solid var(--pleiades-light-gray);
+            font-family: var(--font-body);
         }
-
         .table-header {
             padding: 20px 0 10px;
         }
-
         .table-header h2 {
-            color: #2c3e50;
+            color: var(--pleiades-navy);
             margin-bottom: 6px;
-            font-size: 22px;
-            font-weight: 600;
+            font-size: 24px;
+            font-weight: 400;
         }
-
         .table-header p {
-            color: #666;
+            color: var(--pleiades-gray);
             font-size: 14px;
         }
-
         .data-grid {
             overflow-x: auto;
         }
-
         #results-table {
             width: 100%;
             border-collapse: collapse;
             font-size: 14px;
             table-layout: fixed;
+            font-family: var(--font-body);
         }
-
         #results-table th {
-            background: #f5f5f5;
+            background: var(--pleiades-light-gray);
             padding: 12px;
             text-align: left;
             font-weight: 600;
-            border-bottom: 2px solid #ddd;
+            color: var(--pleiades-navy);
+            border-bottom: 2px solid var(--pleiades-navy);
             position: sticky;
             top: 0;
         }
-
         #results-table td {
             padding: 10px 12px;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid var(--pleiades-light-gray);
             font-size: 14px;
+            color: var(--pleiades-ink);
         }
-
         #results-table tbody tr:hover {
-            background: #f9f9f9;
+            background: #F7F7FA;
             cursor: pointer;
         }
-
         #results-table tbody tr.highlighted {
-            background-color: #ffd700 !important;
+            background-color: rgba(241, 152, 30, 0.35) !important;
         }
-
         .rank-cell {
             font-weight: 600;
-            color: #2c5282;
+            color: var(--pleiades-navy);
             text-align: center;
             width: 60px;
         }
-
         .burden-cell {
             font-weight: 600;
-            color: #a50f15;
+            color: var(--pleiades-deg-4);
         }
-
         .coop-cell {
-            color: #2c5282;
+            color: var(--pleiades-navy);
         }
-
         .no-coop {
-            color: #999;
+            color: var(--pleiades-gray);
             font-style: italic;
         }
-
         #table-loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: var(--pleiades-gray);
             font-size: 16px;
         }
-
         #analysis-progress {
             margin-top: 15px;
             font-size: 14px;
-            color: #3498db;
+            color: var(--pleiades-periwinkle);
         }
-
         .controls-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
         }
-
         .download-button {
             display: inline-block;
             padding: 10px 20px;
-            background: #00005B;
+            background: var(--pleiades-navy);
             color: white;
             border: none;
             border-radius: 6px;
@@ -319,69 +324,64 @@
             font-weight: 600;
             text-decoration: none;
             transition: background 0.3s;
+            font-family: var(--font-body);
         }
-
         .download-button:hover {
-            background: #6360F0;
+            background: var(--pleiades-periwinkle);
         }
-
         .search-box {
             padding: 8px 12px;
             width: 100%;
             max-width: 300px;
             font-size: 14px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--pleiades-light-gray);
             border-radius: 4px;
+            font-family: var(--font-body);
+            color: var(--pleiades-ink);
         }
-
         .search-box:focus {
             outline: none;
-            border-color: #00005B;
+            border-color: var(--pleiades-navy);
         }
-
         .pagination-container {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 15px 0;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid var(--pleiades-light-gray);
         }
-
         .pagination-info {
             font-size: 14px;
-            color: #666;
+            color: var(--pleiades-gray);
         }
-
         .pagination-controls {
             display: flex;
             gap: 5px;
             align-items: center;
         }
-
         .pagination-btn {
             background: white;
-            border: 1px solid #ddd;
+            border: 1px solid var(--pleiades-light-gray);
             padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
             transition: all 0.2s;
+            font-family: var(--font-body);
+            color: var(--pleiades-ink);
         }
-
         .pagination-btn:hover:not(:disabled) {
-            background: #f5f5f5;
-            border-color: #00005B;
+            background: #F7F7FA;
+            border-color: var(--pleiades-navy);
         }
-
         .pagination-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-
         .pagination-btn.active {
-            background: #00005B;
+            background: var(--pleiades-navy);
             color: white;
-            border-color: #00005B;
+            border-color: var(--pleiades-navy);
         }
     </style>
 </head>
@@ -394,9 +394,7 @@
             <div class="progress-bar-fill" id="progressBar"></div>
         </div>
     </div>
-
     <div id="map"></div>
-
     <!-- Layer Controls -->
     <div class="control-panel">
         <h4>Map Layers</h4>
@@ -408,7 +406,6 @@
             <input type="checkbox" id="coopToggle" checked>
             Cooperative Territories
         </label>
-
         <div class="opacity-control">
             <div class="opacity-label">
                 <span>County Opacity</span>
@@ -416,7 +413,6 @@
             </div>
             <input type="range" id="burdenOpacity" min="0" max="100" value="70">
         </div>
-
         <div class="opacity-control">
             <div class="opacity-label">
                 <span>Coop Opacity</span>
@@ -425,26 +421,22 @@
             <input type="range" id="coopOpacity" min="0" max="100" value="25">
         </div>
     </div>
-
     <!-- Table Section -->
     <div id="table-container">
         <div class="table-header">
             <h2>Top 100 Counties by Energy Burden</h2>
             <p>Click on a row to highlight and zoom to the county on the map</p>
         </div>
-
         <div id="table-loading">
             <div class="spinner"></div>
             <p>Analyzing counties and cooperative coverage...</p>
             <div id="analysis-progress"></div>
         </div>
-
         <div id="table-content" style="display:none;">
             <div class="controls-row">
                 <input type="text" id="searchBox" class="search-box" placeholder="Search by state, county, or cooperative...">
                 <button id="downloadCSV" class="download-button">Download as CSV</button>
             </div>
-
             <div class="data-grid">
                 <table id="results-table">
                     <thead>
@@ -467,7 +459,6 @@
             </div>
         </div>
     </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // Initialize map
@@ -477,33 +468,27 @@
             minZoom: 4,
             maxZoom: 13
         });
-
         // Add base map
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
             subdomains: 'abcd',
             maxZoom: 19
         }).addTo(map);
-
         // Create layer groups
         const burdenLayer = L.layerGroup().addTo(map);
         const coopLayer = L.layerGroup().addTo(map);
-
         // Data storage
         let allCountyFeatures = [];
         let coopLayers = [];
         let countyLayers = new Map();
-
-        // Color scale for energy burden (values are integers like 1-15, representing % of income)
+        // Color scale for energy burden — Pleiades "Degrees" palette (magnitude/degree data)
         function getColor(burden) {
-            return burden > 8  ? '#a50f15' :
-                   burden > 6  ? '#de2d26' :
-                   burden > 4.5 ? '#fb6a4a' :
-                   burden > 3.8 ? '#fc9272' :
-                   burden > 3   ? '#fcbba1' :
-                                  '#fee5d9';
+            return burden > 8   ? '#540000' :
+                   burden > 6   ? '#8E0000' :
+                   burden > 4.5 ? '#CD0000' :
+                   burden > 3   ? '#FF6B6B' :
+                                  '#FFC0C0';
         }
-
         // Style function for counties
         function style(feature) {
             return {
@@ -514,84 +499,66 @@
                 fillOpacity: 0.7
             };
         }
-
         // Highlight feature on hover
         function highlightFeature(e) {
             const layer = e.target;
             layer.setStyle({
                 weight: 2,
-                color: '#666',
+                color: '#666666',
                 fillOpacity: 0.9
             });
             layer.bringToFront();
             info.update(layer.feature.properties);
         }
-
         function resetHighlight(e) {
             burdenGeoJSON.resetStyle(e.target);
             info.update();
         }
-
         // Info control
         const info = L.control();
-
         info.onAdd = function (map) {
             this._div = L.DomUtil.create('div', 'info');
             this.update();
             return this._div;
         };
-
         info.update = function (props) {
             this._div.innerHTML = '<h4>Household Energy Burden</h4>' +
                 (props ?
                     '<p><b>' + props.county_name + '</b></p>' +
                     '<p>' + props.state_name + '</p>' +
                     '<p>Energy Burden: <b>' + props.energy_burden + '%</b> of income</p>' +
-                    '<p style="font-size:11px;color:#888;margin-top:8px;">Hover over counties to see details</p>'
+                    '<p style="font-size:11px;color:#666666;margin-top:8px;">Hover over counties to see details</p>'
                     : '<p>Hover over a county</p>');
         };
-
         info.addTo(map);
-
         // Legend
         const legend = L.control({position: 'bottomright'});
-
         legend.onAdd = function (map) {
             const div = L.DomUtil.create('div', 'legend');
-            const grades = [0, 3.0, 3.8, 4.5, 6.0, 8.0];
-
+            const grades = [0, 3.0, 4.5, 6.0, 8.0];
             div.innerHTML = '<h4>Energy Burden % of Income</h4>';
-
             for (let i = 0; i < grades.length; i++) {
                 div.innerHTML +=
                     '<p><i style="background:' + getColor(grades[i] + 0.1) + '"></i> ' +
                     grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '%' : '+%') + '</p>';
             }
-
             div.innerHTML += '<div class="legend-divider"></div>';
             div.innerHTML += '<div class="legend-item"><i class="legend-coop"></i> Electric Cooperative Territory</div>';
-
             return div;
         };
-
         legend.addTo(map);
-
         // Global reference to burdenGeoJSON for resetStyle
         let burdenGeoJSON;
-
         // Progress tracking — 2 files: county GeoJSON + cooperatives API
         let loadedFiles = 0;
         const totalFiles = 2;
-
         function updateProgress(message, percentage) {
             document.querySelector('#loading .progress').textContent = message;
             document.getElementById('progressBar').style.width = percentage + '%';
         }
-
         function fileLoaded() {
             loadedFiles++;
             const percentage = (loadedFiles / totalFiles) * 100;
-
             if (loadedFiles === totalFiles) {
                 updateProgress('Complete!', 100);
                 setTimeout(() => {
@@ -600,11 +567,9 @@
                 }, 500);
             }
         }
-
         // Load county GeoJSON
         const baseUrl = 'https://raw.githubusercontent.com/salisbrach/Congress-Coop-Map/refs/heads/main/';
         const countiesUrl = baseUrl + 'energy_burden_counties.geojson';
-
         // Create a single GeoJSON layer to hold all county data
         burdenGeoJSON = L.geoJSON(null, {
             style: style,
@@ -613,14 +578,12 @@
                     mouseover: highlightFeature,
                     mouseout: resetHighlight
                 });
-
                 // Store reference to layer by GEOID
                 if (feature.properties && feature.properties.GEOID) {
                     countyLayers.set(feature.properties.GEOID, layer);
                 }
             }
         }).addTo(burdenLayer);
-
         // Load county GeoJSON
         updateProgress('Loading county data...', 0);
         fetch(countiesUrl)
@@ -635,14 +598,11 @@
                 console.error('Error loading county data:', error);
                 updateProgress('Error loading county data', 0);
             });
-
         // Load cooperative territories
         async function loadCooperativeTerritories() {
             updateProgress('Loading cooperative territories...', 50);
-
             try {
                 const hifldUrl = 'https://services5.arcgis.com/ARxOqVFcodl7rmzw/arcgis/rest/services/America_Electrical_Coop_Service_Territories/FeatureServer/10/query';
-
                 const params = new URLSearchParams({
                     where: '1=1',
                     outFields: '*',
@@ -650,41 +610,36 @@
                     f: 'geojson',
                     outSR: '4326'
                 });
-
                 const response = await fetch(`${hifldUrl}?${params}`);
                 const data = await response.json();
-
                 if (data.features && data.features.length > 0) {
                     L.geoJSON(data.features, {
                         style: feature => ({
-                            fillColor: '#3182ce',
+                            fillColor: '#6360F0',
                             weight: 1.5,
                             opacity: 0.8,
-                            color: '#2c5282',
+                            color: '#00005B',
                             fillOpacity: 0.25
                         }),
                         onEachFeature: (feature, layer) => {
                             const props = feature.properties;
-
                             // Store layer with properties for analysis
                             coopLayers.push({
                                 layer: layer,
                                 name: props.NAME || props.COOP_NAME || 'Unknown Cooperative',
                                 properties: props
                             });
-
                             layer.bindPopup(`
-                                <div style="font-size: 14px;">
-                                    <div style="font-weight: 600; color: #2c5282; margin-bottom: 5px;">
+                                <div style="font-family: 'Proxima Nova', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 14px;">
+                                    <div style="font-family: 'Abel', sans-serif; font-weight: 400; font-size: 15px; color: #00005B; margin-bottom: 5px;">
                                         ${props.NAME || props.COOP_NAME || 'Unknown Cooperative'}
                                     </div>
-                                    <div style="margin: 3px 0; color: #4a5568;">
+                                    <div style="margin: 3px 0; color: #666666;">
                                         <strong>Type:</strong> ${props.TYPE || 'Cooperative'}
                                     </div>
-                                    ${props.STATE ? `<div style="margin: 3px 0; color: #4a5568;"><strong>State:</strong> ${props.STATE}</div>` : ''}
+                                    ${props.STATE ? `<div style="margin: 3px 0; color: #666666;"><strong>State:</strong> ${props.STATE}</div>` : ''}
                                 </div>
                             `);
-
                             layer.on('mouseover', function() {
                                 this.setStyle({fillOpacity: 0.4, weight: 2});
                             });
@@ -693,7 +648,6 @@
                             });
                         }
                     }).addTo(coopLayer);
-
                     console.log(`✓ Loaded ${data.features.length} cooperative territories`);
                     fileLoaded();
                 } else {
@@ -705,35 +659,27 @@
                 fileLoaded();
             }
         }
-
         loadCooperativeTerritories();
-
         // Process top 100 counties - ASYNC with batching
         async function processTopCounties() {
             console.log('Processing top counties...');
             document.getElementById('analysis-progress').textContent = 'Sorting counties by energy burden...';
-
             // Sort all counties by energy burden descending
             const sortedCounties = allCountyFeatures
                 .filter(f => f.properties && f.properties.energy_burden != null)
                 .sort((a, b) => b.properties.energy_burden - a.properties.energy_burden)
                 .slice(0, 100);
-
             console.log(`Found ${sortedCounties.length} top counties`);
             console.log(`Checking against ${coopLayers.length} cooperatives`);
-
             const results = [];
-
             // Process in batches to avoid freezing
             const batchSize = 10;
             for (let i = 0; i < sortedCounties.length; i += batchSize) {
                 const batch = sortedCounties.slice(i, i + batchSize);
                 document.getElementById('analysis-progress').textContent =
                     `Analyzing counties ${i + 1}-${Math.min(i + batchSize, sortedCounties.length)} of ${sortedCounties.length}...`;
-
                 // Allow UI to update
                 await new Promise(resolve => setTimeout(resolve, 0));
-
                 for (const county of batch) {
                     const servingCoops = findServingCooperativesFast(county);
                     results.push({
@@ -746,76 +692,58 @@
                     });
                 }
             }
-
             displayTable(results);
         }
-
         // Find cooperatives serving a county using its centroid
         function findServingCooperativesFast(countyFeature) {
             if (!countyFeature || !countyFeature.geometry || coopLayers.length === 0) {
                 return [];
             }
-
             try {
                 // Get county centroid
                 const centroid = turf.centroid(countyFeature);
                 const point = L.latLng(centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]);
-
                 const servingCoops = [];
-
                 for (const coopData of coopLayers) {
                     const bounds = coopData.layer.getBounds();
-
                     // Quick bounds check first
                     if (!bounds.contains(point)) continue;
-
                     // Precise point-in-polygon check
                     const turfPoint = turf.point([point.lng, point.lat]);
                     const coopGeoJSON = coopData.layer.toGeoJSON();
-
                     if (turf.booleanPointInPolygon(turfPoint, coopGeoJSON)) {
                         servingCoops.push(coopData.name);
                     }
                 }
-
                 return servingCoops;
             } catch (error) {
                 console.warn('Error finding cooperatives:', error);
                 return [];
             }
         }
-
         // Pagination state
         let allTableResults = [];
         let filteredResults = [];
         let currentPage = 1;
         const rowsPerPage = 25;
-
         // Display results in table (with pagination)
         function displayTable(results) {
             allTableResults = results;
-
             // Show table area, hide loading
             document.getElementById('table-loading').style.display = 'none';
             document.getElementById('table-content').style.display = 'block';
-
             setupSearch();
             setupCSVDownload();
-
             applySearchAndPage();
-
             console.log(`✓ Table populated with ${results.length} results`);
         }
-
         // Build a row element for a result object
         function buildRow(result) {
             const row = document.createElement('tr');
             row.dataset.geoid = result.geoid;
-
             const coopText = result.cooperatives.length > 0
                 ? result.cooperatives.join(', ')
                 : 'No cooperative coverage';
-
             row.innerHTML = `
                 <td class="rank-cell">${result.rank}</td>
                 <td>${result.state}</td>
@@ -824,53 +752,42 @@
                 <td class="burden-cell">${result.burden}%</td>
                 <td class="${result.cooperatives.length === 0 ? 'no-coop' : 'coop-cell'}">${coopText}</td>
             `;
-
             row.addEventListener('click', () => {
                 document.querySelectorAll('#results-table tr.highlighted').forEach(r => {
                     r.classList.remove('highlighted');
                 });
                 row.classList.add('highlighted');
-
                 const layer = countyLayers.get(result.geoid);
                 if (layer) {
                     map.fitBounds(layer.getBounds(), { padding: [50, 50] });
-                    layer.setStyle({ weight: 3, color: '#ff0000' });
+                    layer.setStyle({ weight: 3, color: '#8E0000' });
                     setTimeout(() => {
                         burdenGeoJSON.resetStyle(layer);
                     }, 3000);
                 }
             });
-
             return row;
         }
-
         // Render the current page of filteredResults into the tbody
         function displayPage(page) {
             currentPage = page;
             const tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
-
             const start = (page - 1) * rowsPerPage;
             const end = Math.min(start + rowsPerPage, filteredResults.length);
-
             for (let i = start; i < end; i++) {
                 tbody.appendChild(buildRow(filteredResults[i]));
             }
-
             updatePagination(filteredResults.length);
         }
-
         function updatePagination(totalRows) {
             const totalPages = Math.ceil(totalRows / rowsPerPage);
             const start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
             const end = Math.min(currentPage * rowsPerPage, totalRows);
-
             document.getElementById('paginationInfo').textContent =
                 `Showing ${start}–${end} of ${totalRows} entries`;
-
             const controls = document.getElementById('paginationControls');
             controls.innerHTML = '';
-
             // Previous
             const prevBtn = document.createElement('button');
             prevBtn.className = 'pagination-btn';
@@ -878,7 +795,6 @@
             prevBtn.disabled = currentPage === 1;
             prevBtn.onclick = () => displayPage(currentPage - 1);
             controls.appendChild(prevBtn);
-
             // Page number buttons (up to 5 shown)
             const maxButtons = 5;
             let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
@@ -886,7 +802,6 @@
             if (endPage - startPage < maxButtons - 1) {
                 startPage = Math.max(1, endPage - maxButtons + 1);
             }
-
             if (startPage > 1) {
                 const firstBtn = document.createElement('button');
                 firstBtn.className = 'pagination-btn';
@@ -900,7 +815,6 @@
                     controls.appendChild(ellipsis);
                 }
             }
-
             for (let i = startPage; i <= endPage; i++) {
                 const pageBtn = document.createElement('button');
                 pageBtn.className = 'pagination-btn' + (i === currentPage ? ' active' : '');
@@ -908,7 +822,6 @@
                 pageBtn.onclick = () => displayPage(i);
                 controls.appendChild(pageBtn);
             }
-
             if (endPage < totalPages) {
                 if (endPage < totalPages - 1) {
                     const ellipsis = document.createElement('span');
@@ -922,7 +835,6 @@
                 lastBtn.onclick = () => displayPage(totalPages);
                 controls.appendChild(lastBtn);
             }
-
             // Next
             const nextBtn = document.createElement('button');
             nextBtn.className = 'pagination-btn';
@@ -931,7 +843,6 @@
             nextBtn.onclick = () => displayPage(currentPage + 1);
             controls.appendChild(nextBtn);
         }
-
         // Filter allTableResults by search term, then re-page from page 1
         function applySearchAndPage() {
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
@@ -942,12 +853,10 @@
             currentPage = 1;
             displayPage(1);
         }
-
         // Search functionality
         function setupSearch() {
             document.getElementById('searchBox').addEventListener('input', applySearchAndPage);
         }
-
         // CSV Download
         function setupCSVDownload() {
             document.getElementById('downloadCSV').addEventListener('click', () => {
@@ -960,12 +869,10 @@
                     r.burden,
                     r.cooperatives.length > 0 ? r.cooperatives.join('; ') : 'No cooperative coverage'
                 ]);
-
                 const csvContent = [
                     headers.join(','),
                     ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
                 ].join('\n');
-
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -975,16 +882,13 @@
                 URL.revokeObjectURL(url);
             });
         }
-
         // Event listeners for layer toggles
         document.getElementById('coopToggle').addEventListener('change', (e) => {
             e.target.checked ? map.addLayer(coopLayer) : map.removeLayer(coopLayer);
         });
-
         document.getElementById('burdenToggle').addEventListener('change', (e) => {
             e.target.checked ? map.addLayer(burdenLayer) : map.removeLayer(burdenLayer);
         });
-
         // Opacity controls
         document.getElementById('coopOpacity').addEventListener('input', (e) => {
             const opacity = parseFloat(e.target.value) / 100;
@@ -995,7 +899,6 @@
                 }
             });
         });
-
         document.getElementById('burdenOpacity').addEventListener('input', (e) => {
             const opacity = parseFloat(e.target.value) / 100;
             document.getElementById('burdenOpacityValue').textContent = e.target.value + '%';
