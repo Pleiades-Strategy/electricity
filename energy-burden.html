@@ -489,31 +489,126 @@
                    burden > 3   ? '#FF6B6B' :
                                   '#FFC0C0';
         }
-        // Style function for counties
+        // Current slider-driven base opacities (kept in sync with the opacity controls so that
+        // hover highlighting always reverts to whatever the user currently has selected, not a
+        // stale hardcoded default).
+        let currentBurdenOpacity = 0.7;
+        let currentCoopOpacity = 0.25;
+        // Style function for counties (base / non-hovered state)
         function style(feature) {
+            return countyBaseStyle(feature);
+        }
+        function countyBaseStyle(feature) {
             return {
                 fillColor: getColor(feature.properties.energy_burden),
                 weight: 0.8,
                 opacity: 0.4,
                 color: 'white',
-                fillOpacity: 0.7
+                fillOpacity: currentBurdenOpacity
             };
         }
-        // Highlight feature on hover
-        function highlightFeature(e) {
-            const layer = e.target;
-            layer.setStyle({
+        function countyHighlightStyle(feature) {
+            return {
+                fillColor: getColor(feature.properties.energy_burden),
                 weight: 2,
+                opacity: 1,
                 color: '#666666',
                 fillOpacity: 0.9
+            };
+        }
+        function coopBaseStyle() {
+            return {
+                fillColor: '#6360F0',
+                weight: 1.5,
+                opacity: 0.8,
+                color: '#00005B',
+                fillOpacity: currentCoopOpacity
+            };
+        }
+        function coopHighlightStyle() {
+            return {
+                fillColor: '#6360F0',
+                weight: 2,
+                opacity: 1,
+                color: '#00005B',
+                fillOpacity: Math.min(currentCoopOpacity + 0.2, 0.9)
+            };
+        }
+        // ---- Unified hover state -------------------------------------------------
+        // Both the county (energy burden) layer and the cooperative-territory layer live in the
+        // same Leaflet SVG pane, so whichever polygon happens to be drawn last sits "on top" and
+        // is the only one that receives native mouseover/mouseout events. Rather than relying on
+        // per-shape browser hover events (which can only ever hit the topmost shape at a given
+        // pixel), we track the cursor's map coordinates directly and use Turf.js point-in-polygon
+        // checks against BOTH datasets on every move. That lets a hover reveal the coop territory
+        // and the census tract underneath it at the same time, regardless of draw order, and it
+        // gives us one single, reliable place to apply/undo the highlight style so it can never
+        // get stuck.
+        let hoveredCountyLayer = null;
+        let hoveredCoopEntry = null;
+        let hoverRAF = null;
+        function setHoveredCounty(layer) {
+            if (hoveredCountyLayer === layer) return;
+            if (hoveredCountyLayer) {
+                hoveredCountyLayer.setStyle(countyBaseStyle(hoveredCountyLayer.feature));
+            }
+            hoveredCountyLayer = layer;
+            if (hoveredCountyLayer) {
+                hoveredCountyLayer.setStyle(countyHighlightStyle(hoveredCountyLayer.feature));
+            }
+        }
+        function setHoveredCoop(coopData) {
+            if (hoveredCoopEntry === coopData) return;
+            if (hoveredCoopEntry) {
+                hoveredCoopEntry.layer.setStyle(coopBaseStyle());
+            }
+            hoveredCoopEntry = coopData;
+            if (hoveredCoopEntry) {
+                hoveredCoopEntry.layer.setStyle(coopHighlightStyle());
+            }
+        }
+        function clearAllHover() {
+            setHoveredCounty(null);
+            setHoveredCoop(null);
+            updateInfoPanel();
+        }
+        // Find the county polygon (if any) under a given lat/lng, using cached bounds as a cheap
+        // pre-filter before the more expensive turf point-in-polygon check.
+        function findCountyAtLatLng(latlng) {
+            const pt = [latlng.lng, latlng.lat];
+            for (const layer of countyLayers.values()) {
+                if (!layer._hoverBounds || !layer._hoverBounds.contains(latlng)) continue;
+                if (turf.booleanPointInPolygon(pt, layer.feature)) {
+                    return layer;
+                }
+            }
+            return null;
+        }
+        // Find the cooperative territory (if any) under a given lat/lng.
+        function findCoopAtLatLng(latlng) {
+            const pt = [latlng.lng, latlng.lat];
+            for (const coopData of coopLayers) {
+                if (!coopData.bounds || !coopData.bounds.contains(latlng)) continue;
+                if (turf.booleanPointInPolygon(pt, coopData.feature)) {
+                    return coopData;
+                }
+            }
+            return null;
+        }
+        function handleMapHover(e) {
+            if (hoverRAF) return;
+            hoverRAF = requestAnimationFrame(() => {
+                hoverRAF = null;
+                const latlng = e.latlng;
+                const county = map.hasLayer(burdenLayer) ? findCountyAtLatLng(latlng) : null;
+                const coop = map.hasLayer(coopLayer) ? findCoopAtLatLng(latlng) : null;
+                setHoveredCounty(county);
+                setHoveredCoop(coop);
+                updateInfoPanel();
             });
-            layer.bringToFront();
-            info.update(layer.feature.properties);
         }
-        function resetHighlight(e) {
-            burdenGeoJSON.resetStyle(e.target);
-            info.update();
-        }
+        map.on('mousemove', handleMapHover);
+        map.on('mouseout', clearAllHover);
         // Info control
         const info = L.control();
         info.onAdd = function (map) {
@@ -521,15 +616,28 @@
             this.update();
             return this._div;
         };
-        info.update = function (props) {
-            this._div.innerHTML = '<h4>Household Energy Burden</h4>' +
-                (props ?
-                    '<p><b>' + props.county_name + '</b></p>' +
-                    '<p>' + props.state_name + '</p>' +
-                    '<p>Energy Burden: <b>' + props.energy_burden + '%</b> of income</p>' +
-                    '<p style="font-size:11px;color:#666666;margin-top:8px;">Hover over counties to see details</p>'
-                    : '<p>Hover over a county</p>');
+        info.update = function (countyProps, coopName) {
+            let html = '<h4>Household Energy Burden</h4>';
+            if (countyProps) {
+                html += '<p><b>' + countyProps.county_name + '</b></p>' +
+                    '<p>' + countyProps.state_name + '</p>' +
+                    '<p>Energy Burden: <b>' + countyProps.energy_burden + '%</b> of income</p>';
+            }
+            if (coopName) {
+                html += '<p>Cooperative: <b>' + coopName + '</b></p>';
+            }
+            if (countyProps || coopName) {
+                html += '<p style="font-size:11px;color:#666666;margin-top:8px;">Hover over the map to see details</p>';
+            } else {
+                html += '<p>Hover over the map to see details</p>';
+            }
+            this._div.innerHTML = html;
         };
+        function updateInfoPanel() {
+            const countyProps = hoveredCountyLayer ? hoveredCountyLayer.feature.properties : null;
+            const coopName = hoveredCoopEntry ? hoveredCoopEntry.name : null;
+            info.update(countyProps, coopName);
+        }
         info.addTo(map);
         // Legend
         const legend = L.control({position: 'bottomright'});
@@ -574,10 +682,9 @@
         burdenGeoJSON = L.geoJSON(null, {
             style: style,
             onEachFeature: function(feature, layer) {
-                layer.on({
-                    mouseover: highlightFeature,
-                    mouseout: resetHighlight
-                });
+                // Cache bounds once up front so hover hit-testing (which runs on every mousemove)
+                // never has to recompute them.
+                layer._hoverBounds = layer.getBounds();
                 // Store reference to layer by GEOID
                 if (feature.properties && feature.properties.GEOID) {
                     countyLayers.set(feature.properties.GEOID, layer);
@@ -614,21 +721,19 @@
                 const data = await response.json();
                 if (data.features && data.features.length > 0) {
                     L.geoJSON(data.features, {
-                        style: feature => ({
-                            fillColor: '#6360F0',
-                            weight: 1.5,
-                            opacity: 0.8,
-                            color: '#00005B',
-                            fillOpacity: 0.25
-                        }),
+                        style: () => coopBaseStyle(),
                         onEachFeature: (feature, layer) => {
                             const props = feature.properties;
-                            // Store layer with properties for analysis
-                            coopLayers.push({
+                            // Store layer with properties for analysis, plus cached bounds/feature
+                            // for fast hover hit-testing.
+                            const coopData = {
                                 layer: layer,
                                 name: props.NAME || props.COOP_NAME || 'Unknown Cooperative',
-                                properties: props
-                            });
+                                properties: props,
+                                feature: feature,
+                                bounds: layer.getBounds()
+                            };
+                            coopLayers.push(coopData);
                             layer.bindPopup(`
                                 <div style="font-family: 'Proxima Nova', -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 14px;">
                                     <div style="font-family: 'Abel', sans-serif; font-weight: 400; font-size: 15px; color: #00005B; margin-bottom: 5px;">
@@ -640,12 +745,6 @@
                                     ${props.STATE ? `<div style="margin: 3px 0; color: #666666;"><strong>State:</strong> ${props.STATE}</div>` : ''}
                                 </div>
                             `);
-                            layer.on('mouseover', function() {
-                                this.setStyle({fillOpacity: 0.4, weight: 2});
-                            });
-                            layer.on('mouseout', function() {
-                                this.setStyle({fillOpacity: 0.25, weight: 1.5});
-                            });
                         }
                     }).addTo(coopLayer);
                     console.log(`✓ Loaded ${data.features.length} cooperative territories`);
@@ -705,12 +804,12 @@
                 const point = L.latLng(centroid.geometry.coordinates[1], centroid.geometry.coordinates[0]);
                 const servingCoops = [];
                 for (const coopData of coopLayers) {
-                    const bounds = coopData.layer.getBounds();
+                    const bounds = coopData.bounds || coopData.layer.getBounds();
                     // Quick bounds check first
                     if (!bounds.contains(point)) continue;
                     // Precise point-in-polygon check
                     const turfPoint = turf.point([point.lng, point.lat]);
-                    const coopGeoJSON = coopData.layer.toGeoJSON();
+                    const coopGeoJSON = coopData.feature || coopData.layer.toGeoJSON();
                     if (turf.booleanPointInPolygon(turfPoint, coopGeoJSON)) {
                         servingCoops.push(coopData.name);
                     }
@@ -762,7 +861,11 @@
                     map.fitBounds(layer.getBounds(), { padding: [50, 50] });
                     layer.setStyle({ weight: 3, color: '#8E0000' });
                     setTimeout(() => {
-                        burdenGeoJSON.resetStyle(layer);
+                        // Reset back to the current base style (which respects whatever the
+                        // opacity slider is set to right now) rather than a hardcoded default.
+                        if (hoveredCountyLayer !== layer) {
+                            layer.setStyle(countyBaseStyle(layer.feature));
+                        }
                     }, 3000);
                 }
             });
@@ -884,25 +987,43 @@
         }
         // Event listeners for layer toggles
         document.getElementById('coopToggle').addEventListener('change', (e) => {
-            e.target.checked ? map.addLayer(coopLayer) : map.removeLayer(coopLayer);
+            if (e.target.checked) {
+                map.addLayer(coopLayer);
+            } else {
+                map.removeLayer(coopLayer);
+                setHoveredCoop(null);
+                updateInfoPanel();
+            }
         });
         document.getElementById('burdenToggle').addEventListener('change', (e) => {
-            e.target.checked ? map.addLayer(burdenLayer) : map.removeLayer(burdenLayer);
+            if (e.target.checked) {
+                map.addLayer(burdenLayer);
+            } else {
+                map.removeLayer(burdenLayer);
+                setHoveredCounty(null);
+                updateInfoPanel();
+            }
         });
         // Opacity controls
         document.getElementById('coopOpacity').addEventListener('input', (e) => {
             const opacity = parseFloat(e.target.value) / 100;
+            currentCoopOpacity = opacity;
             document.getElementById('coopOpacityValue').textContent = e.target.value + '%';
             coopLayer.eachLayer(layer => {
-                if (layer.setStyle) {
+                if (layer.setStyle && layer !== (hoveredCoopEntry && hoveredCoopEntry.layer)) {
                     layer.setStyle({fillOpacity: opacity});
                 }
             });
         });
         document.getElementById('burdenOpacity').addEventListener('input', (e) => {
             const opacity = parseFloat(e.target.value) / 100;
+            currentBurdenOpacity = opacity;
             document.getElementById('burdenOpacityValue').textContent = e.target.value + '%';
-            burdenGeoJSON.setStyle({fillOpacity: opacity});
+            burdenGeoJSON.eachLayer(layer => {
+                if (layer !== hoveredCountyLayer) {
+                    layer.setStyle({fillOpacity: opacity});
+                }
+            });
         });
     </script>
 </body>
