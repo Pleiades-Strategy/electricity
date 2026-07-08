@@ -545,7 +545,10 @@
         // gives us one single, reliable place to apply/undo the highlight style so it can never
         // get stuck.
         let hoveredCountyLayer = null;
-        let hoveredCoopEntry = null;
+        // Territories overlap (e.g. adjacent co-ops with shared/edge-case service areas), so more
+        // than one cooperative can legitimately contain the same point. Track all of them as a
+        // list rather than a single entry.
+        let hoveredCoopEntries = [];
         let hoverRAF = null;
         function setHoveredCounty(layer) {
             if (hoveredCountyLayer === layer) return;
@@ -557,19 +560,26 @@
                 hoveredCountyLayer.setStyle(countyHighlightStyle(hoveredCountyLayer.feature));
             }
         }
-        function setHoveredCoop(coopData) {
-            if (hoveredCoopEntry === coopData) return;
-            if (hoveredCoopEntry) {
-                hoveredCoopEntry.layer.setStyle(coopBaseStyle());
+        function setHoveredCoops(newEntries) {
+            const newSet = new Set(newEntries);
+            const oldSet = new Set(hoveredCoopEntries);
+            // Reset ones that are no longer under the cursor
+            for (const entry of hoveredCoopEntries) {
+                if (!newSet.has(entry)) {
+                    entry.layer.setStyle(coopBaseStyle());
+                }
             }
-            hoveredCoopEntry = coopData;
-            if (hoveredCoopEntry) {
-                hoveredCoopEntry.layer.setStyle(coopHighlightStyle());
+            // Highlight newly-entered ones
+            for (const entry of newEntries) {
+                if (!oldSet.has(entry)) {
+                    entry.layer.setStyle(coopHighlightStyle());
+                }
             }
+            hoveredCoopEntries = newEntries;
         }
         function clearAllHover() {
             setHoveredCounty(null);
-            setHoveredCoop(null);
+            setHoveredCoops([]);
             updateInfoPanel();
         }
         // Find the county polygon (if any) under a given lat/lng, using cached bounds as a cheap
@@ -584,16 +594,18 @@
             }
             return null;
         }
-        // Find the cooperative territory (if any) under a given lat/lng.
-        function findCoopAtLatLng(latlng) {
+        // Find ALL cooperative territories (there can be more than one where service areas
+        // overlap) under a given lat/lng.
+        function findCoopsAtLatLng(latlng) {
             const pt = [latlng.lng, latlng.lat];
+            const matches = [];
             for (const coopData of coopLayers) {
                 if (!coopData.bounds || !coopData.bounds.contains(latlng)) continue;
                 if (turf.booleanPointInPolygon(pt, coopData.feature)) {
-                    return coopData;
+                    matches.push(coopData);
                 }
             }
-            return null;
+            return matches;
         }
         function handleMapHover(e) {
             if (hoverRAF) return;
@@ -601,9 +613,9 @@
                 hoverRAF = null;
                 const latlng = e.latlng;
                 const county = map.hasLayer(burdenLayer) ? findCountyAtLatLng(latlng) : null;
-                const coop = map.hasLayer(coopLayer) ? findCoopAtLatLng(latlng) : null;
+                const coops = map.hasLayer(coopLayer) ? findCoopsAtLatLng(latlng) : [];
                 setHoveredCounty(county);
-                setHoveredCoop(coop);
+                setHoveredCoops(coops);
                 updateInfoPanel();
             });
         }
@@ -616,17 +628,18 @@
             this.update();
             return this._div;
         };
-        info.update = function (countyProps, coopName) {
+        info.update = function (countyProps, coopNames) {
             let html = '<h4>Household Energy Burden</h4>';
             if (countyProps) {
                 html += '<p><b>' + countyProps.county_name + '</b></p>' +
                     '<p>' + countyProps.state_name + '</p>' +
                     '<p>Energy Burden: <b>' + countyProps.energy_burden + '%</b> of income</p>';
             }
-            if (coopName) {
-                html += '<p>Cooperative: <b>' + coopName + '</b></p>';
+            if (coopNames && coopNames.length > 0) {
+                const label = coopNames.length > 1 ? 'Cooperatives' : 'Cooperative';
+                html += '<p>' + label + ': <b>' + coopNames.join(', ') + '</b></p>';
             }
-            if (countyProps || coopName) {
+            if (countyProps || (coopNames && coopNames.length > 0)) {
                 html += '<p style="font-size:11px;color:#666666;margin-top:8px;">Hover over the map to see details</p>';
             } else {
                 html += '<p>Hover over the map to see details</p>';
@@ -635,8 +648,8 @@
         };
         function updateInfoPanel() {
             const countyProps = hoveredCountyLayer ? hoveredCountyLayer.feature.properties : null;
-            const coopName = hoveredCoopEntry ? hoveredCoopEntry.name : null;
-            info.update(countyProps, coopName);
+            const coopNames = hoveredCoopEntries.map(entry => entry.name);
+            info.update(countyProps, coopNames);
         }
         info.addTo(map);
         // Legend
@@ -991,7 +1004,7 @@
                 map.addLayer(coopLayer);
             } else {
                 map.removeLayer(coopLayer);
-                setHoveredCoop(null);
+                setHoveredCoops([]);
                 updateInfoPanel();
             }
         });
@@ -1009,8 +1022,9 @@
             const opacity = parseFloat(e.target.value) / 100;
             currentCoopOpacity = opacity;
             document.getElementById('coopOpacityValue').textContent = e.target.value + '%';
+            const hoveredCoopLayers = new Set(hoveredCoopEntries.map(entry => entry.layer));
             coopLayer.eachLayer(layer => {
-                if (layer.setStyle && layer !== (hoveredCoopEntry && hoveredCoopEntry.layer)) {
+                if (layer.setStyle && !hoveredCoopLayers.has(layer)) {
                     layer.setStyle({fillOpacity: opacity});
                 }
             });
